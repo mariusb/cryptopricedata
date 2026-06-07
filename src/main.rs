@@ -1,6 +1,7 @@
-use chrono::{DateTime, Utc};
+#[allow(unused_imports)]
+use chrono::{DateTime, Local, Utc};
 use serde::Deserialize;
-use spreadsheet_ods::{read_ods, write_ods, Sheet, WorkBook};
+use spreadsheet_ods::{Sheet, WorkBook, read_ods, write_ods};
 use std::path::Path;
 
 const ODS_FILE: &str = "CryptoPriceData.ods";
@@ -98,7 +99,8 @@ async fn fetch_api5() -> Result<ValrMarketSummary, reqwest::Error> {
 }
 
 fn get_timestamp() -> String {
-    let now: DateTime<Utc> = Utc::now();
+    // let now: DateTime<Utc> = Utc::now();
+    let now: DateTime<Local> = Local::now();
     now.format("%Y-%m-%d %H:%M").to_string()
 }
 
@@ -106,10 +108,28 @@ fn create_header_sheet() -> Sheet {
     let mut sheet = Sheet::new("CryptoPriceData");
     let headers: [&str; 24] = [
         "Timestamp",
-        "BTC_USD", "ETH_USD", "DOGE_USD", "TRX_USD", "ADA_USD", "NIGHT_USD", "BDAG_USD", "USDT_USD", "USDC_USD",
-        "ADA_BTC", "NIGHT_BTC", "BDAG_BTC", "TRX_BTC", "DOGE_BTC", "BNB_BTC", "ETH_BTC", "USDT_BTC", "USDC_BTC",
+        "BTC_USD",
+        "ETH_USD",
+        "DOGE_USD",
+        "TRX_USD",
+        "ADA_USD",
+        "NIGHT_USD",
+        "BDAG_USD",
+        "USDT_USD",
+        "USDC_USD",
+        "ADA_BTC",
+        "NIGHT_BTC",
+        "BDAG_BTC",
+        "TRX_BTC",
+        "DOGE_BTC",
+        "BNB_BTC",
+        "ETH_BTC",
+        "USDT_BTC",
+        "USDC_BTC",
         "BTC_ZAR",
-        "ZAR_XR", "THB_XR", "KZT_XR",
+        "ZAR_XR",
+        "THB_XR",
+        "KZT_XR",
         "USDTZAR_lastTradedPrice",
     ];
     for (col, header) in headers.iter().enumerate() {
@@ -151,7 +171,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         values.push(data.USDT.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
         values.push(data.USDC.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
     } else {
-        for _ in 0..9 { values.push(0.0); }
+        for _ in 0..9 {
+            values.push(0.0);
+        }
     }
 
     if let Ok(data) = api2 {
@@ -165,7 +187,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         values.push(data.USDT.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
         values.push(data.USDC.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
     } else {
-        for _ in 0..9 { values.push(0.0); }
+        for _ in 0..9 {
+            values.push(0.0);
+        }
     }
 
     if let Ok(data) = api3 {
@@ -180,14 +204,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             values.push(rates.THB.unwrap_or(0.0));
             values.push(rates.KZT.unwrap_or(0.0));
         } else {
-            for _ in 0..3 { values.push(0.0); }
+            for _ in 0..3 {
+                values.push(0.0);
+            }
         }
     } else {
-        for _ in 0..3 { values.push(0.0); }
+        for _ in 0..3 {
+            values.push(0.0);
+        }
     }
 
     if let Ok(data) = api5 {
-        values.push(data.last_traded_price.as_ref().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0));
+        values.push(
+            data.last_traded_price
+                .as_ref()
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0),
+        );
     } else {
         values.push(0.0);
     }
@@ -208,13 +241,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let row_idx = find_next_empty_row(sheet);
 
     sheet.set_value(row_idx, 0, timestamp.as_str());
-    
+
     for (col, value) in values.iter().enumerate() {
         sheet.set_value(row_idx, (col + 1) as u32, *value);
     }
 
     write_ods(&mut workbook, ODS_FILE)?;
 
-    println!("Data written to {}", ODS_FILE);
+    // println!("Data written to {}", ODS_FILE);
     Ok(())
 }
