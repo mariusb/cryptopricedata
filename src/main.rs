@@ -64,21 +64,21 @@ struct ValrMarketSummary {
 }
 
 async fn fetch_api1() -> Result<PriceMultiResponse, reqwest::Error> {
-    let url = "https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH,DOGE,TRX,ADA,NIGHT,BDAG,USDT,USDC&tsyms=USD";
+    let url = "https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH,DOGE,TRX,ADA,NIGHT,BDAG,USDT,USDC&tsyms=USD&api_key=e67a1a47e8ce26da50c001a735d12e81b8c6b570094ead5e8b57bccd6a0aeae7";
     let resp = reqwest::get(url).await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
 
 async fn fetch_api2() -> Result<PriceMultiResponse, reqwest::Error> {
-    let url = "https://min-api.cryptocompare.com/data/pricemulti?fsyms=ADA,NIGHT,BDAG,TRX,DOGE,BNB,ETH,USDT,USDC&tsyms=BTC";
+    let url = "https://min-api.cryptocompare.com/data/pricemulti?fsyms=ADA,NIGHT,BDAG,TRX,DOGE,BNB,ETH,USDT,USDC&tsyms=BTC&api_key=e67a1a47e8ce26da50c001a735d12e81b8c6b570094ead5e8b57bccd6a0aeae7";
     let resp = reqwest::get(url).await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
 
 async fn fetch_api3() -> Result<PriceResponse, reqwest::Error> {
-    let url = "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=ZAR&e=VALR";
+    let url = "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=ZAR&e=VALR&api_key=e67a1a47e8ce26da50c001a735d12e81b8c6b570094ead5e8b57bccd6a0aeae7";
     let resp = reqwest::get(url).await?;
     let data = resp.json::<PriceResponse>().await?;
     Ok(data)
@@ -99,14 +99,21 @@ async fn fetch_api5() -> Result<ValrMarketSummary, reqwest::Error> {
 }
 
 fn get_timestamp() -> String {
-    // let now: DateTime<Utc> = Utc::now();
+    // Return Time for Local
     let now: DateTime<Local> = Local::now();
-    now.format("%Y-%m-%d %H:%M").to_string()
+    now.format("%H:%M").to_string()
+}
+
+fn get_datestamp() -> String {
+    // Return Date for Local
+    let now: DateTime<Local> = Local::now();
+    now.format("%Y-%m-%d").to_string()
 }
 
 fn create_header_sheet() -> Sheet {
     let mut sheet = Sheet::new("CryptoPriceData");
-    let headers: [&str; 24] = [
+    let headers: [&str; 25] = [
+        "Datestamp",
         "Timestamp",
         "BTC_USD",
         "ETH_USD",
@@ -149,6 +156,7 @@ fn find_next_empty_row(sheet: &Sheet) -> u32 {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let timestamp = get_timestamp();
+    let datestamp = get_datestamp();
 
     let (api1, api2, api3, api4, api5) = tokio::join!(
         fetch_api1(),
@@ -240,10 +248,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sheet = workbook.sheet_mut(0);
     let row_idx = find_next_empty_row(sheet);
 
-    sheet.set_value(row_idx, 0, timestamp.as_str());
+    sheet.set_value(row_idx, 0, datestamp.as_str());
+    sheet.set_value(row_idx, 1, timestamp.as_str());
 
     for (col, value) in values.iter().enumerate() {
-        sheet.set_value(row_idx, (col + 1) as u32, *value);
+        sheet.set_value(row_idx, (col + 2) as u32, *value);
     }
 
     write_ods(&mut workbook, ODS_FILE)?;
