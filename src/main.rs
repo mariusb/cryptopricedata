@@ -10,31 +10,43 @@ const ODS_FILE: &str = "CryptoPriceData.ods";
 #[derive(Debug, Deserialize)]
 struct PriceMultiResponse {
     #[serde(default)]
+    #[serde(rename = "bitcoin")]
     BTC: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "ethereum")]
     ETH: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "dogecoin")]
     DOGE: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "tron")]
     TRX: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "cardano")]
     ADA: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "midnight-3")]
     NIGHT: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "blockdag")]
     BDAG: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "tether")]
     USDT: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "usd-coin")]
     USDC: Option<PriceEntry>,
     #[serde(default)]
+    #[serde(rename = "binancecoin")]
     BNB: Option<PriceEntry>,
 }
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct PriceEntry {
+    #[serde(rename = "usd")]
     USD: Option<f64>,
+    #[serde(rename = "btc")]
     BTC: Option<f64>,
 }
 
@@ -63,25 +75,41 @@ struct ValrMarketSummary {
     last_traded_price: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct ValrTickersResponse {
+    tickers: Vec<ValrTicker>,
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+struct ValrTicker {
+    base: Option<String>,
+    target: Option<String>,
+    last: Option<f64>,
+}
+
 async fn fetch_api1() -> Result<PriceMultiResponse, reqwest::Error> {
-    let url = "https://min-api.cryptocompare.com/data/pricemulti?fsyms=BTC,ETH,DOGE,TRX,ADA,NIGHT,BDAG,USDT,USDC&tsyms=USD&api_key=e67a1a47e8ce26da50c001a735d12e81b8c6b570094ead5e8b57bccd6a0aeae7";
+    let url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,dogecoin,tron,cardano,midnight-3,blockdag,tether,usd-coin&vs_currencies=usd&x_cg_demo_api_key=CG-6ECawTrFcx92rJg7UrgtXUjb";
     let resp = reqwest::get(url).await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
 
 async fn fetch_api2() -> Result<PriceMultiResponse, reqwest::Error> {
-    let url = "https://min-api.cryptocompare.com/data/pricemulti?fsyms=ADA,NIGHT,BDAG,TRX,DOGE,BNB,ETH,USDT,USDC&tsyms=BTC&api_key=e67a1a47e8ce26da50c001a735d12e81b8c6b570094ead5e8b57bccd6a0aeae7";
+    let url = "https://api.coingecko.com/api/v3/simple/price?ids=cardano,midnight-3,blockdag,tron,dogecoin,binancecoin,ethereum,tether,usd-coin&vs_currencies=btc&x_cg_demo_api_key=CG-6ECawTrFcx92rJg7UrgtXUjb";
     let resp = reqwest::get(url).await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
 
 async fn fetch_api3() -> Result<PriceResponse, reqwest::Error> {
-    let url = "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=ZAR&e=VALR&api_key=e67a1a47e8ce26da50c001a735d12e81b8c6b570094ead5e8b57bccd6a0aeae7";
+    let url = "https://api.coingecko.com/api/v3/exchanges/valr/tickers?coin_ids=bitcoin&x_cg_demo_api_key=CG-6ECawTrFcx92rJg7UrgtXUjb";
     let resp = reqwest::get(url).await?;
-    let data = resp.json::<PriceResponse>().await?;
-    Ok(data)
+    let data = resp.json::<ValrTickersResponse>().await?;
+    let zar = data.tickers.iter()
+        .find(|t| t.base.as_deref() == Some("BTC") && t.target.as_deref() == Some("ZAR"))
+        .and_then(|t| t.last);
+    Ok(PriceResponse { ZAR: zar })
 }
 
 async fn fetch_api4() -> Result<ExchangeRatesResponse, reqwest::Error> {

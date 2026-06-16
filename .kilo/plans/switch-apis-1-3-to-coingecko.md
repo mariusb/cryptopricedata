@@ -111,3 +111,13 @@ After implementing:
 1. `cargo build` — should compile without warnings related to the changed code.
 2. `cargo run` — should write a new row to `CryptoPriceData.ods` with the same column layout. The 23 numeric columns should be populated from the new CoinGecko responses in the same order as before.
 3. Open `CryptoPriceData.ods` and confirm the header row is unchanged and the new data row has 25 cells in the expected order.
+
+## Completion
+
+- [x] Add `ValrTickersResponse` and `ValrTicker` structs near `ValrMarketSummary`
+- [x] Update `PriceEntry` with `#[serde(rename = "usd")]` and `#[serde(rename = "btc")]`
+- [x] Add `#[serde(rename = "...")]` attributes to all fields in `PriceMultiResponse`
+- [x] Update `fetch_api1` URL to CoinGecko `/simple/price` (USD)
+- [x] Update `fetch_api2` URL to CoinGecko `/simple/price` (BTC)
+- [x] Rewrite `fetch_api3` to use CoinGecko `/exchanges/valr/tickers` endpoint
+- [x] `cargo build` passes successfully
