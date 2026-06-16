@@ -53,11 +53,11 @@ cargo run --release
 
 ## API Sources
 
-1. **CryptoCompare Price Multi (USD):** `https://min-api.cryptocompare.com`
-2. **CryptoCompare Price Multi (BTC):** `https://min-api.cryptocompare.com`
-3. **CryptoCompare Price (ZAR):** `https://min-api.cryptocompare.com`
-4. **OpenExchangeRates:** `https://openexchangerates.org`
-5. **VALR Market Summary:** `https://api.valr.com`
+1. **CoinGecko Simple Price (USD):** `https://api.coingecko.com/api/v3/simple/price`
+2. **CoinGecko Simple Price (BTC):** `https://api.coingecko.com/api/v3/simple/price`
+3. **CoinGecko VALR Exchange Tickers (BTC/ZAR):** `https://api.coingecko.com/api/v3/exchanges/valr/tickers`
+4. **OpenExchangeRates:** `https://openexchangerates.org/api/latest.json`
+5. **VALR Market Summary:** `https://api.valr.com/v1/public/USDTZAR/marketsummary`
 
 ## Behavior
 
