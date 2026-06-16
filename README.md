@@ -6,6 +6,21 @@ A Rust application that fetches cryptocurrency and forex prices from multiple AP
 
 - Rust (install from https://rust-lang.org)
 
+## API Keys
+
+This app reads API keys from a local `.env` file in the project root. Copy the example file and fill in real values:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and replace the placeholders with real keys:
+
+- `GECKO_API_KEY` — from [CoinGecko](https://www.coingecko.com/en/api)
+- `OPENEXCHANGERATES_APP_ID` — from [OpenExchangeRates](https://openexchangerates.org/)
+
+The `.env` file is git-ignored; never commit real keys. The committed `.env.example` documents the required schema.
+
 ## Build and Run
 
 ```bash
