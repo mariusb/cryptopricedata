@@ -88,23 +88,29 @@ struct ValrTicker {
     last: Option<f64>,
 }
 
-async fn fetch_api1() -> Result<PriceMultiResponse, reqwest::Error> {
-    let url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,dogecoin,tron,cardano,midnight-3,blockdag,tether,usd-coin&vs_currencies=usd&x_cg_demo_api_key=CG-6ECawTrFcx92rJg7UrgtXUjb";
-    let resp = reqwest::get(url).await?;
+async fn fetch_api1(api_key: &str) -> Result<PriceMultiResponse, reqwest::Error> {
+    let url = format!(
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,dogecoin,tron,cardano,midnight-3,blockdag,tether,usd-coin&vs_currencies=usd&x_cg_demo_api_key={api_key}"
+    );
+    let resp = reqwest::get(&url).await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
 
-async fn fetch_api2() -> Result<PriceMultiResponse, reqwest::Error> {
-    let url = "https://api.coingecko.com/api/v3/simple/price?ids=cardano,midnight-3,blockdag,tron,dogecoin,binancecoin,ethereum,tether,usd-coin&vs_currencies=btc&x_cg_demo_api_key=CG-6ECawTrFcx92rJg7UrgtXUjb";
-    let resp = reqwest::get(url).await?;
+async fn fetch_api2(api_key: &str) -> Result<PriceMultiResponse, reqwest::Error> {
+    let url = format!(
+        "https://api.coingecko.com/api/v3/simple/price?ids=cardano,midnight-3,blockdag,tron,dogecoin,binancecoin,ethereum,tether,usd-coin&vs_currencies=btc&x_cg_demo_api_key={api_key}"
+    );
+    let resp = reqwest::get(&url).await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
 
-async fn fetch_api3() -> Result<PriceResponse, reqwest::Error> {
-    let url = "https://api.coingecko.com/api/v3/exchanges/valr/tickers?coin_ids=bitcoin&x_cg_demo_api_key=CG-6ECawTrFcx92rJg7UrgtXUjb";
-    let resp = reqwest::get(url).await?;
+async fn fetch_api3(api_key: &str) -> Result<PriceResponse, reqwest::Error> {
+    let url = format!(
+        "https://api.coingecko.com/api/v3/exchanges/valr/tickers?coin_ids=bitcoin&x_cg_demo_api_key={api_key}"
+    );
+    let resp = reqwest::get(&url).await?;
     let data = resp.json::<ValrTickersResponse>().await?;
     let zar = data.tickers.iter()
         .find(|t| t.base.as_deref() == Some("BTC") && t.target.as_deref() == Some("ZAR"))
@@ -112,9 +118,11 @@ async fn fetch_api3() -> Result<PriceResponse, reqwest::Error> {
     Ok(PriceResponse { ZAR: zar })
 }
 
-async fn fetch_api4() -> Result<ExchangeRatesResponse, reqwest::Error> {
-    let url = "https://openexchangerates.org/api/latest.json?app_id=3263b0c93523446299d17e2e6abdd748&symbols=ZAR,THB,KZT";
-    let resp = reqwest::get(url).await?;
+async fn fetch_api4(app_id: &str) -> Result<ExchangeRatesResponse, reqwest::Error> {
+    let url = format!(
+        "https://openexchangerates.org/api/latest.json?app_id={app_id}&symbols=ZAR,THB,KZT"
+    );
+    let resp = reqwest::get(&url).await?;
     let data = resp.json::<ExchangeRatesResponse>().await?;
     Ok(data)
 }
@@ -183,14 +191,21 @@ fn find_next_empty_row(sheet: &Sheet) -> u32 {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
+    let gecko_api_key = std::env::var("GECKO_API_KEY")
+        .map_err(|_| format!("GECKO_API_KEY not set; add it to a .env file or your environment"))?;
+    let openexchangerates_app_id = std::env::var("OPENEXCHANGERATES_APP_ID")
+        .map_err(|_| format!("OPENEXCHANGERATES_APP_ID not set; add it to a .env file or your environment"))?;
+
     let timestamp = get_timestamp();
     let datestamp = get_datestamp();
 
     let (api1, api2, api3, api4, api5) = tokio::join!(
-        fetch_api1(),
-        fetch_api2(),
-        fetch_api3(),
-        fetch_api4(),
+        fetch_api1(&gecko_api_key),
+        fetch_api2(&gecko_api_key),
+        fetch_api3(&gecko_api_key),
+        fetch_api4(&openexchangerates_app_id),
         fetch_api5(),
     );
 
