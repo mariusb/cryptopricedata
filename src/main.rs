@@ -1,7 +1,9 @@
 #[allow(unused_imports)]
 use chrono::{DateTime, Local, Utc};
 use serde::Deserialize;
-use spreadsheet_ods::{Sheet, WorkBook, read_ods, write_ods};
+use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, WorkBook, read_ods, write_ods};
+use spreadsheet_ods::format::{create_number_format_fixed, ValueFormatTrait};
+use spreadsheet_ods::style::{StyleOrigin, StyleUse};
 use std::path::Path;
 
 const ODS_FILE: &str = "CryptoPriceData.ods";
@@ -288,6 +290,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         workbook.push_sheet(sheet);
     }
 
+    let mut fmt_8dp = create_number_format_fixed("num_8dp", 8, false);
+    fmt_8dp.set_origin(StyleOrigin::Styles);
+    fmt_8dp.set_styleuse(StyleUse::Named);
+    let fmt_8dp = workbook.add_number_format(fmt_8dp);
+
+    let mut style_8dp = CellStyle::new("style_8dp", &fmt_8dp);
+    style_8dp.set_origin(StyleOrigin::Styles);
+    style_8dp.set_styleuse(StyleUse::Named);
+    style_8dp.set_parent_style(&CellStyleRef::from("Default"));
+    let style_8dp = workbook.add_cellstyle(style_8dp);
+
     let sheet = workbook.sheet_mut(0);
     let row_idx = find_next_empty_row(sheet);
 
@@ -295,7 +308,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sheet.set_value(row_idx, 1, timestamp.as_str());
 
     for (col, value) in values.iter().enumerate() {
-        sheet.set_value(row_idx, (col + 2) as u32, *value);
+        sheet.set_styled_value(row_idx, (col + 2) as u32, *value, &style_8dp);
     }
 
     write_ods(&mut workbook, ODS_FILE)?;
