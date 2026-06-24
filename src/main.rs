@@ -1,8 +1,11 @@
 #[allow(unused_imports)]
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
-use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, WorkBook, read_ods, write_ods};
-use spreadsheet_ods::format::{create_number_format_fixed, ValueFormatTrait};
+use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, ValueType, WorkBook, read_ods, write_ods};
+use spreadsheet_ods::format::{
+    create_date_iso_format, create_number_format_fixed,
+    FormatNumberStyle, ValueFormatDateTime, ValueFormatTrait,
+};
 use spreadsheet_ods::style::{StyleOrigin, StyleUse};
 use std::path::Path;
 
@@ -136,16 +139,12 @@ async fn fetch_api5() -> Result<ValrMarketSummary, reqwest::Error> {
     Ok(data)
 }
 
-fn get_timestamp() -> String {
-    // Return Time for Local
-    let now: DateTime<Local> = Local::now();
-    now.format("%H:%M").to_string()
+fn get_timestamp() -> NaiveTime {
+    Local::now().time()
 }
 
-fn get_datestamp() -> String {
-    // Return Date for Local
-    let now: DateTime<Local> = Local::now();
-    now.format("%Y-%m-%d").to_string()
+fn get_datestamp() -> NaiveDate {
+    Local::now().date_naive()
 }
 
 fn create_header_sheet() -> Sheet {
@@ -185,7 +184,7 @@ fn create_header_sheet() -> Sheet {
 
 fn find_next_empty_row(sheet: &Sheet) -> u32 {
     let mut row_idx: u32 = 0;
-    while !sheet.value(row_idx, 0).as_str_or("").is_empty() {
+    while sheet.value(row_idx, 0).value_type() != ValueType::Empty {
         row_idx += 1;
     }
     row_idx
@@ -301,11 +300,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     style_8dp.set_parent_style(&CellStyleRef::from("Default"));
     let style_8dp = workbook.add_cellstyle(style_8dp);
 
+    let mut fmt_date = create_date_iso_format("date_ymd");
+    fmt_date.set_origin(StyleOrigin::Styles);
+    fmt_date.set_styleuse(StyleUse::Named);
+    let fmt_date = workbook.add_datetime_format(fmt_date);
+
+    let mut style_date = CellStyle::new("style_date", &fmt_date);
+    style_date.set_origin(StyleOrigin::Styles);
+    style_date.set_styleuse(StyleUse::Named);
+    style_date.set_parent_style(&CellStyleRef::from("Default"));
+    let style_date = workbook.add_cellstyle(style_date);
+
+    let mut fmt_time = ValueFormatDateTime::new_named("time_hm");
+    fmt_time.part_hours().style(FormatNumberStyle::Long).build();
+    fmt_time.part_text(":").build();
+    fmt_time.part_minutes().style(FormatNumberStyle::Long).build();
+    fmt_time.set_origin(StyleOrigin::Styles);
+    fmt_time.set_styleuse(StyleUse::Named);
+    let fmt_time = workbook.add_datetime_format(fmt_time);
+
+    let mut style_time = CellStyle::new("style_time", &fmt_time);
+    style_time.set_origin(StyleOrigin::Styles);
+    style_time.set_styleuse(StyleUse::Named);
+    style_time.set_parent_style(&CellStyleRef::from("Default"));
+    let style_time = workbook.add_cellstyle(style_time);
+
     let sheet = workbook.sheet_mut(0);
     let row_idx = find_next_empty_row(sheet);
 
-    sheet.set_value(row_idx, 0, datestamp.as_str());
-    sheet.set_value(row_idx, 1, timestamp.as_str());
+    sheet.set_styled_value(row_idx, 0, datestamp, &style_date);
+    sheet.set_styled_value(row_idx, 1, timestamp, &style_time);
 
     for (col, value) in values.iter().enumerate() {
         sheet.set_styled_value(row_idx, (col + 2) as u32, *value, &style_8dp);
