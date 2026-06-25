@@ -41,7 +41,8 @@ cargo run --release
 
 | Column | Source | Description |
 |--------|--------|-------------|
-| Timestamp | Local | Date/time in YYYY-MM-DD HH:MM format |
+| Datestamp | Local | Date in YYYY-MM-DD format |
+| Timestamp | Local | Time in HH:MM format |
 | BTC_USD | API 1 | Bitcoin price in USD |
 | ETH_USD | API 1 | Ethereum price in USD |
 | DOGE_USD | API 1 | Dogecoin price in USD |
