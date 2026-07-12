@@ -1,12 +1,12 @@
 #[allow(unused_imports)]
 use chrono::{DateTime, Local, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
-use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, ValueType, WorkBook, read_ods, write_ods};
 use spreadsheet_ods::format::{
-    create_date_iso_format, create_number_format_fixed,
-    FormatNumberStyle, ValueFormatDateTime, ValueFormatTrait,
+    FormatNumberStyle, ValueFormatDateTime, ValueFormatTrait, create_date_iso_format,
+    create_number_format_fixed,
 };
 use spreadsheet_ods::style::{StyleOrigin, StyleUse};
+use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, ValueType, WorkBook, read_ods, write_ods};
 use std::path::Path;
 
 const ODS_FILE: &str = "CryptoPriceData.ods";
@@ -72,6 +72,7 @@ struct ExchangeRates {
     ZAR: Option<f64>,
     THB: Option<f64>,
     KZT: Option<f64>,
+    EUR: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,7 +118,9 @@ async fn fetch_api3(api_key: &str) -> Result<PriceResponse, reqwest::Error> {
     );
     let resp = reqwest::get(&url).await?;
     let data = resp.json::<ValrTickersResponse>().await?;
-    let zar = data.tickers.iter()
+    let zar = data
+        .tickers
+        .iter()
         .find(|t| t.base.as_deref() == Some("BTC") && t.target.as_deref() == Some("ZAR"))
         .and_then(|t| t.last);
     Ok(PriceResponse { ZAR: zar })
@@ -125,7 +128,7 @@ async fn fetch_api3(api_key: &str) -> Result<PriceResponse, reqwest::Error> {
 
 async fn fetch_api4(app_id: &str) -> Result<ExchangeRatesResponse, reqwest::Error> {
     let url = format!(
-        "https://openexchangerates.org/api/latest.json?app_id={app_id}&symbols=ZAR,THB,KZT"
+        "https://openexchangerates.org/api/latest.json?app_id={app_id}&symbols=ZAR,THB,KZT,EUR"
     );
     let resp = reqwest::get(&url).await?;
     let data = resp.json::<ExchangeRatesResponse>().await?;
@@ -149,7 +152,7 @@ fn get_datestamp() -> NaiveDate {
 
 fn create_header_sheet() -> Sheet {
     let mut sheet = Sheet::new("CryptoPriceData");
-    let headers: [&str; 25] = [
+    let headers: [&str; 26] = [
         "Datestamp",
         "Timestamp",
         "BTC_USD",
@@ -174,6 +177,7 @@ fn create_header_sheet() -> Sheet {
         "ZAR_XR",
         "THB_XR",
         "KZT_XR",
+        "EUR_XR",
         "USDTZAR_lastTradedPrice",
     ];
     for (col, header) in headers.iter().enumerate() {
@@ -196,8 +200,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let gecko_api_key = std::env::var("GECKO_API_KEY")
         .map_err(|_| format!("GECKO_API_KEY not set; add it to a .env file or your environment"))?;
-    let openexchangerates_app_id = std::env::var("OPENEXCHANGERATES_APP_ID")
-        .map_err(|_| format!("OPENEXCHANGERATES_APP_ID not set; add it to a .env file or your environment"))?;
+    let openexchangerates_app_id = std::env::var("OPENEXCHANGERATES_APP_ID").map_err(|_| {
+        format!("OPENEXCHANGERATES_APP_ID not set; add it to a .env file or your environment")
+    })?;
 
     let timestamp = get_timestamp();
     let datestamp = get_datestamp();
@@ -255,13 +260,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             values.push(rates.ZAR.unwrap_or(0.0));
             values.push(rates.THB.unwrap_or(0.0));
             values.push(rates.KZT.unwrap_or(0.0));
+            values.push(rates.EUR.unwrap_or(0.0));
         } else {
-            for _ in 0..3 {
+            for _ in 0..4 {
                 values.push(0.0);
             }
         }
     } else {
-        for _ in 0..3 {
+        for _ in 0..4 {
             values.push(0.0);
         }
     }
@@ -314,7 +320,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut fmt_time = ValueFormatDateTime::new_named("time_hm");
     fmt_time.part_hours().style(FormatNumberStyle::Long).build();
     fmt_time.part_text(":").build();
-    fmt_time.part_minutes().style(FormatNumberStyle::Long).build();
+    fmt_time
+        .part_minutes()
+        .style(FormatNumberStyle::Long)
+        .build();
     fmt_time.set_origin(StyleOrigin::Styles);
     fmt_time.set_styleuse(StyleUse::Named);
     let fmt_time = workbook.add_datetime_format(fmt_time);
