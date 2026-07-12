@@ -65,6 +65,7 @@ cargo run --release
 | ZAR_XR | API 4 | South African Rand exchange rate (USD base) |
 | THB_XR | API 4 | Thai Baht exchange rate (USD base) |
 | KZT_XR | API 4 | Kazakhstani Tenge exchange rate (USD base) |
+| EUR_XR | API 4 | Euro exchange rate (USD base) |
 | USDTZAR_lastTradedPrice | API 5 | Last traded USDT/ZAR price (VALR) |
 
 ## API Sources
