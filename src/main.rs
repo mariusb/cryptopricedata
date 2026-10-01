@@ -10,6 +10,8 @@ use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, ValueType, WorkBook, read_
 use std::path::Path;
 use tracing::{error, info, warn};
 
+use reqwest::header::{ACCEPT, HeaderMap, HeaderValue};
+
 const ODS_FILE: &str = "CryptoPriceData.ods";
 const LOG_FILE: &str = "cryptoprice.log";
 
@@ -100,7 +102,20 @@ async fn fetch_api1(api_key: &str) -> Result<PriceMultiResponse, reqwest::Error>
     let url = format!(
         "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,dogecoin,tron,cardano,midnight-3,blockdag,tether,usd-coin&vs_currencies=usd&x_cg_demo_api_key={api_key}"
     );
-    let resp = reqwest::get(&url).await?;
+
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+
+    let client = reqwest::Client::builder()
+        .user_agent(concat!(
+            env!("CARGO_PKG_NAME"),
+            "/",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .default_headers(headers)
+        .build()?;
+
+    let resp = client.get(&url).send().await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
@@ -109,7 +124,20 @@ async fn fetch_api2(api_key: &str) -> Result<PriceMultiResponse, reqwest::Error>
     let url = format!(
         "https://api.coingecko.com/api/v3/simple/price?ids=cardano,midnight-3,blockdag,tron,dogecoin,binancecoin,ethereum,tether,usd-coin&vs_currencies=btc&x_cg_demo_api_key={api_key}"
     );
-    let resp = reqwest::get(&url).await?;
+
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+
+    let client = reqwest::Client::builder()
+        .user_agent(concat!(
+            env!("CARGO_PKG_NAME"),
+            "/",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .default_headers(headers)
+        .build()?;
+
+    let resp = client.get(&url).send().await?;
     let data = resp.json::<PriceMultiResponse>().await?;
     Ok(data)
 }
