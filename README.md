@@ -81,3 +81,16 @@ cargo run --release
 - If `CryptoPriceData.ods` does not exist, a new file is created with headers
 - If the file exists, a new row is appended with fresh data
 - Failed API calls result in `0.0` values being written
+
+## Logging
+
+Logs are written to `cryptoprice.log` in the current working directory. On the
+first run of a new month the previous month's log is rotated to
+`cryptoprice.log.YYMM`.
+
+Set `RUST_LOG` to control verbosity (default `info`):
+
+```sh
+RUST_LOG=debug cargo run   # verbose output
+RUST_LOG=error cargo run   # errors only
+```

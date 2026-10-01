@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use chrono::{DateTime, Local, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
 use spreadsheet_ods::format::{
     FormatNumberStyle, ValueFormatDateTime, ValueFormatTrait, create_date_iso_format,
@@ -8,8 +8,10 @@ use spreadsheet_ods::format::{
 use spreadsheet_ods::style::{StyleOrigin, StyleUse};
 use spreadsheet_ods::{CellStyle, CellStyleRef, Sheet, ValueType, WorkBook, read_ods, write_ods};
 use std::path::Path;
+use tracing::{error, info, warn};
 
 const ODS_FILE: &str = "CryptoPriceData.ods";
+const LOG_FILE: &str = "cryptoprice.log";
 
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
@@ -150,6 +152,58 @@ fn get_datestamp() -> NaiveDate {
     Local::now().date_naive()
 }
 
+fn rotate_log_if_needed() {
+    let log_path = Path::new(LOG_FILE);
+    let metadata = match std::fs::metadata(log_path) {
+        Ok(m) => m,
+        Err(_) => return, // No log file exists yet, nothing to rotate
+    };
+
+    let modified = match metadata.modified() {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+
+    let modified_dt: DateTime<Local> = modified.into();
+    let now = Local::now();
+
+    // If the log file was last modified in a different month, back it up
+    if (modified_dt.year(), modified_dt.month()) != (now.year(), now.month()) {
+        let backup_name = format!("{}.{}", LOG_FILE, modified_dt.format("%y%m"));
+        let backup_path = Path::new(&backup_name);
+        // v2: never clobber an existing backup — std::fs::rename overwrites on Unix
+        if backup_path.exists() {
+            eprintln!(
+                "Backup {} already exists, skipping rotation to avoid overwrite",
+                backup_name
+            );
+            return;
+        }
+        if let Err(e) = std::fs::rename(log_path, backup_path) {
+            eprintln!("Failed to rotate log file: {}", e);
+        }
+    }
+}
+
+fn init_logging() -> tracing_appender::non_blocking::WorkerGuard {
+    rotate_log_if_needed();
+
+    let file_appender = tracing_appender::rolling::never(".", LOG_FILE);
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .with_target(false)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
+    guard
+}
+
 fn create_header_sheet() -> Sheet {
     let mut sheet = Sheet::new("CryptoPriceData");
     let headers: [&str; 26] = [
@@ -198,9 +252,22 @@ fn find_next_empty_row(sheet: &Sheet) -> u32 {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
-    let gecko_api_key = std::env::var("GECKO_API_KEY")
-        .map_err(|_| format!("GECKO_API_KEY not set; add it to a .env file or your environment"))?;
+    let _log_guard = init_logging();
+    info!("Application started");
+    match std::fs::canonicalize(LOG_FILE) {
+        Ok(p) => info!("Log file: {}", p.display()),
+        Err(_) => info!(
+            "Log file: {} (relative to current working directory)",
+            LOG_FILE
+        ),
+    }
+
+    let gecko_api_key = std::env::var("GECKO_API_KEY").map_err(|_| {
+        error!("GECKO_API_KEY not set; add it to a .env file or your environment");
+        format!("GECKO_API_KEY not set; add it to a .env file or your environment")
+    })?;
     let openexchangerates_app_id = std::env::var("OPENEXCHANGERATES_APP_ID").map_err(|_| {
+        error!("OPENEXCHANGERATES_APP_ID not set; add it to a .env file or your environment");
         format!("OPENEXCHANGERATES_APP_ID not set; add it to a .env file or your environment")
     })?;
 
@@ -217,75 +284,103 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut values: Vec<f64> = Vec::new();
 
-    if let Ok(data) = api1 {
-        values.push(data.BTC.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.ETH.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.DOGE.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.TRX.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.ADA.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.NIGHT.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.BDAG.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.USDT.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-        values.push(data.USDC.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
-    } else {
-        for _ in 0..9 {
+    match api1 {
+        Ok(data) => {
+            values.push(data.BTC.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.ETH.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.DOGE.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.TRX.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.ADA.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.NIGHT.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.BDAG.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.USDT.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+            values.push(data.USDC.as_ref().and_then(|e| e.USD).unwrap_or(0.0));
+        }
+        Err(e) => {
+            error!("API 1 (CoinGecko USD prices) failed: {}", e);
+            for _ in 0..9 {
+                values.push(0.0);
+            }
+        }
+    }
+
+    match api2 {
+        Ok(data) => {
+            values.push(data.ADA.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.NIGHT.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.BDAG.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.TRX.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.DOGE.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.BNB.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.ETH.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.USDT.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+            values.push(data.USDC.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
+        }
+        Err(e) => {
+            error!("API 2 (CoinGecko BTC prices) failed: {}", e);
+            for _ in 0..9 {
+                values.push(0.0);
+            }
+        }
+    }
+
+    match api3 {
+        Ok(data) => {
+            values.push(data.ZAR.unwrap_or(0.0));
+        }
+        Err(e) => {
+            error!("API 3 (CoinGecko VALR BTC/ZAR) failed: {}", e);
             values.push(0.0);
         }
     }
 
-    if let Ok(data) = api2 {
-        values.push(data.ADA.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.NIGHT.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.BDAG.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.TRX.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.DOGE.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.BNB.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.ETH.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.USDT.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-        values.push(data.USDC.as_ref().and_then(|e| e.BTC).unwrap_or(0.0));
-    } else {
-        for _ in 0..9 {
-            values.push(0.0);
+    match api4 {
+        Ok(data) => {
+            if let Some(rates) = data.rates {
+                values.push(rates.ZAR.unwrap_or(0.0));
+                values.push(rates.THB.unwrap_or(0.0));
+                values.push(rates.KZT.unwrap_or(0.0));
+                values.push(rates.EUR.unwrap_or(0.0));
+            } else {
+                // v2: previously a silent zero-fill — now warned
+                warn!("API 4 (OpenExchangeRates): rates field missing from response");
+                for _ in 0..4 {
+                    values.push(0.0);
+                }
+            }
         }
-    }
-
-    if let Ok(data) = api3 {
-        values.push(data.ZAR.unwrap_or(0.0));
-    } else {
-        values.push(0.0);
-    }
-
-    if let Ok(data) = api4 {
-        if let Some(rates) = data.rates {
-            values.push(rates.ZAR.unwrap_or(0.0));
-            values.push(rates.THB.unwrap_or(0.0));
-            values.push(rates.KZT.unwrap_or(0.0));
-            values.push(rates.EUR.unwrap_or(0.0));
-        } else {
+        Err(e) => {
+            error!("API 4 (OpenExchangeRates) failed: {}", e);
             for _ in 0..4 {
                 values.push(0.0);
             }
         }
-    } else {
-        for _ in 0..4 {
+    }
+
+    match api5 {
+        Ok(data) => {
+            values.push(
+                data.last_traded_price
+                    .as_ref()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0),
+            );
+        }
+        Err(e) => {
+            error!("API 5 (VALR USDTZAR market summary) failed: {}", e);
             values.push(0.0);
         }
     }
 
-    if let Ok(data) = api5 {
-        values.push(
-            data.last_traded_price
-                .as_ref()
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(0.0),
-        );
-    } else {
-        values.push(0.0);
-    }
-
     let path = Path::new(ODS_FILE);
     let mut workbook = if path.exists() {
-        read_ods(path)?
+        match read_ods(path) {
+            Ok(wb) => wb,
+            Err(e) => {
+                error!("Failed to read existing ODS file '{}': {}", ODS_FILE, e);
+                return Err(e.into());
+            }
+        }
     } else {
         WorkBook::default()
     };
@@ -344,8 +439,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sheet.set_styled_value(row_idx, (col + 2) as u32, *value, &style_8dp);
     }
 
-    write_ods(&mut workbook, ODS_FILE)?;
+    if let Err(e) = write_ods(&mut workbook, ODS_FILE) {
+        error!("Failed to write ODS file '{}': {}", ODS_FILE, e);
+        return Err(e.into());
+    }
 
     // println!("Data written to {}", ODS_FILE);
+    info!("Application finished successfully");
     Ok(())
 }

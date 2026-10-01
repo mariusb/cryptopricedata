@@ -1,3 +1,5 @@
 /target
 *.ods
 .env
+cryptoprice.log
+cryptoprice.log.*
